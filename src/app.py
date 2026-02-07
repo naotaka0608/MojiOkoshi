@@ -156,6 +156,14 @@ class App(CTkDhD):
         if self.is_transcribing:
             return
 
+        # Check for HF_TOKEN for Diarization
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            # Simple check to see if we should ask. 
+            # If the user cancels, we proceed without diarization (token=None)
+            dialog = ctk.CTkInputDialog(text="話者分離(Aさん/Bさん)を行うには\nHuggingFace Tokenが必要です。\n(入力しない場合は分離なしで実行します)", title="HF Token")
+            hf_token = dialog.get_input()
+
         self.is_transcribing = True
         self.transcribe_btn.configure(state="disabled")
         self.select_file_btn.configure(state="disabled")
@@ -173,12 +181,12 @@ class App(CTkDhD):
         model_name = self.model_var.get()
         
         # Pass callback
-        threading.Thread(target=self.run_transcription, args=(self.audio_path, model_name), daemon=True).start()
+        threading.Thread(target=self.run_transcription, args=(self.audio_path, model_name, hf_token), daemon=True).start()
 
-    def run_transcription(self, audio_path, model_name):
+    def run_transcription(self, audio_path, model_name, hf_token=None):
         try:
             # Pass our update_progress_ui as callback
-            result = self.transcriber.transcribe(audio_path, model_name, progress_callback=self.update_progress_ui)
+            result = self.transcriber.transcribe(audio_path, model_name, progress_callback=self.update_progress_ui, hf_token=hf_token)
             self.after(0, self.on_transcription_complete, result)
         except Exception as e:
             self.after(0, self.on_transcription_error, str(e))

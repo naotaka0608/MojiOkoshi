@@ -15,4 +15,5 @@ dependencies = [
     "openai-whisper",
     "numba",
     "tkinterdnd2",
+    "pyannote-audio>=3.4.0",
 ]
