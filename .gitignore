@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# PyCharm / VSCode
+.idea/
+.vscode/
+
+# Audio Files (Test/Sample)
+*.wav
+*.mp3
+*.m4a
+*.flac
+
+# Output Files
+*.txt
+*.srt
+
+# Logs
+*.log
