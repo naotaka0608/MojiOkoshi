@@ -14,8 +14,9 @@ class SpeakerDiarizer:
 
         print("Loading Diarization pipeline...")
         try:
-            # Using the standard pretrained model. 
-            # Note: This requires acceptance of terms on HF for pyannote/speaker-diarization-3.1
+            # 標準の事前学習済みモデルを使用。
+            # Hugging Faceからモデルをダウンロードします。
+            # 注: これにはHFでのpyannote/speaker-diarization-3.1の利用規約への同意が必要
             self.pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
                 use_auth_token=self.use_auth_token
@@ -37,13 +38,14 @@ class SpeakerDiarizer:
             self.load_pipeline()
             
         print(f"Diarizing {audio_path}...")
-        # Run diarization
+        # ダイアライゼーションを実行
+        # 音声ファイルを解析し、「誰がいつ話しているか」を特定します
         diarization = self.pipeline(audio_path)
         
-        # Convert to a list of segments
+        # セグメントのリストに変換
         segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
-            # turn.start, turn.end, speaker
+            # 開始時間、終了時間、話者ラベル（SPEAKER_00, SPEAKER_01など）を取得
             segments.append({
                 "start": turn.start,
                 "end": turn.end,

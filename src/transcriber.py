@@ -4,6 +4,8 @@ import os
 
 class Transcriber:
     def __init__(self):
+        # モデルとダイアライザー（話者分離用）の初期化
+        # self.model はWhisperの音声認識モデルを保持します
         self.model = None
         self.current_model_name = None
         self.diarizer = None
@@ -13,10 +15,12 @@ class Transcriber:
             return
             
         print(f"Loading Whisper model: {model_name}...")
-        # Check for CUDA
+        # CUDA（GPU）が使えるか確認します。使える場合はGPUを、使えない場合はCPUを使用します。
+        # GPUを使うと処理が非常に高速になります。
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {device}")
         
+        # モデルをメモリに読み込みます。これには少し時間がかかります。
         self.model = whisper.load_model(model_name, device=device)
         self.current_model_name = model_name
         print("Model loaded.")
@@ -25,10 +29,10 @@ class Transcriber:
         if not diarization_segments:
             return None
             
-        # Find all speakers in this segment range
+        # このセグメント範囲内のすべての話者を検索
         speakers = {}
         for seg in diarization_segments:
-            # Check overlap
+            # 重なりを確認
             seg_start = seg["start"]
             seg_end = seg["end"]
             
@@ -43,18 +47,18 @@ class Transcriber:
         if not speakers:
             return None
             
-        # Return speaker with max duration
+        # 最も長く話している話者を、そのセグメントの話者として採用します
         return max(speakers, key=speakers.get)
 
 
     def _add_line_breaks(self, text):
         """
-        Add line breaks after punctuation marks for better readability.
+        読点を挿入して読みやすくするために改行を追加する。
         """
         if not text:
             return ""
         
-        # Apply line break on period and question marks
+        # 句点と疑問符で改行を適用
         text = text.replace("。", "。\n")
         text = text.replace("?", "?\n") 
         text = text.replace("？", "？\n")
@@ -69,12 +73,13 @@ class Transcriber:
         
         print(f"Transcribing {audio_path}...")
         
-        # Calculate duration for progress
+        # 進捗バーの表示用に、音声ファイルの長さを計算します
+        # whisper.load_audio は音声を読み込んで配列にします（16kHzにリサンプリングされます）
         audio = whisper.load_audio(audio_path)
-        duration = len(audio) / 16000 # 16kHz
+        duration = len(audio) / 16000 # 16kHzで割って秒数を算出
         print(f"Audio duration: {duration:.2f}s")
 
-        # Capture verbose output to track progress
+        # 進捗を追跡するために詳細出力をキャプチャ
         import sys
         import io
         import re
@@ -87,11 +92,13 @@ class Transcriber:
                 self.duration = duration
                 self.pattern = re.compile(r"\[(\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}\.\d{3})\]\s*(.*)")
 
+
             def write(self, text):
                 super().write(text)
-                sys.__stdout__.write(text) # Pass through
+                if sys.__stdout__:
+                    sys.__stdout__.write(text) # 通過させる
                 
-                # Parse timestamp and text
+                # タイムスタンプとテキストを解析
                 for match in self.pattern.finditer(text):
                     if self.progress_cb and self.duration > 0:
                         end_time_str = match.group(2)
@@ -105,20 +112,23 @@ class Transcriber:
                         if content:
                             self.text_cb(content)
 
-        # Redirect stdout
+        # 標準出力（print関数の出力先）を一時的に書き換えます to capture progress
+        # これにより、Whisperの内部ログから進捗状況を読み取ることができます
         original_stdout = sys.stdout
         
         try:
             if progress_callback or text_callback:
                 sys.stdout = ProgressCapture(progress_callback, text_callback, duration)
             
+            # ここで実際に文字起こし処理を実行します
+            # verbose=True にすることで、進捗がコンソールに出力され、それをキャプチャします
             result = self.model.transcribe(audio_path, verbose=True, fp16=False)
             
-            # Reset stdout right after transcription is done
+            # 文字起こし完了直後に標準出力をリセット
             sys.stdout = original_stdout
             
-            # Perform Diarization if HF_TOKEN is available
-            # Note: We prioritize the hf_token passed in, then env var (checked in Diarizer)
+            # HF_TOKENが利用可能な場合、ダイアライゼーションを実行
+            # 注: 渡されたhf_tokenを優先し、次に環境変数を確認する（Diarizer内で確認）
             if hf_token or os.environ.get("HF_TOKEN"):
                 try:
                     from .diarizer import SpeakerDiarizer
@@ -127,11 +137,11 @@ class Transcriber:
                     
                     diarization_segments = self.diarizer.diarize(audio_path)
                     
-                    # Merge results
-                    # "segments" key in result contains list of {start, end, text, ...}
+                    # 結果をマージ
+                    # 結果の"segments"キーには{start, end, text, ...}のリストが含まれる
                     formatted_text = ""
                     current_speaker = None
-                    speaker_mapping = {} # Map SPEAKER_00 to Aさん, SPEAKER_01 to Bさん etc.
+                    speaker_mapping = {} # SPEAKER_00をAさん、SPEAKER_01をBさんなどにマッピング
                     speaker_count = 0
                     
                     segments_with_speaker = []
@@ -145,8 +155,8 @@ class Transcriber:
                         
                         if speaker_label:
                             if speaker_label not in speaker_mapping:
-                                # Assign simplified names A, B, C...
-                                # Or just use the label if preferred, but user asked for Aさん Bさん
+                                # 簡略化された名前A、B、C...を割り当て
+                                # または、必要ならラベルをそのまま使用するが、ユーザーはAさん Bさんを求めていた
                                 letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                 name = f"{letters[speaker_count % len(letters)]}さん"
                                 speaker_mapping[speaker_label] = name
@@ -161,7 +171,7 @@ class Transcriber:
                             "text": text
                         })
 
-                    # Format Final Text
+                    # 最終テキストのフォーマット
                     # Aさん: ...
                     # ...
                     # (Break)
@@ -169,7 +179,7 @@ class Transcriber:
                     
                     final_lines = []
                     
-                    # Group segments by speaker
+                    # 話者ごとにセグメントをグループ化
                     current_speaker = None
                     current_block_text = []
                     
@@ -179,14 +189,14 @@ class Transcriber:
                         
 
                         if speaker != current_speaker:
-                            # Flush current block if any
+                            # 現在のブロックがあればフラッシュ
                             if current_block_text:
                                 block_content = "\n".join(current_block_text)
                                 block_content = self._add_line_breaks(block_content)
                                 
                                 final_lines.append(f"{current_speaker}:")
                                 final_lines.append(block_content)
-                                final_lines.append("") # Empty line between speakers
+                                final_lines.append("") # 話者間の空行
                             
                             current_speaker = speaker
                             current_block_text = []
@@ -194,7 +204,7 @@ class Transcriber:
                         current_block_text.append(text)
                     
 
-                    # Flush last block
+                    # 最後のブロックをフラッシュ
                     if current_block_text:
                         block_content = "\n".join(current_block_text)
                         block_content = self._add_line_breaks(block_content)
@@ -207,15 +217,15 @@ class Transcriber:
                     
                 except Exception as e:
                     print(f"Diarization failed: {e}")
-                    # Fallback to original text if diarization fails, BUT still apply line breaks
+                    # ダイアライゼーションが失敗した場合、元のテキストにフォールバックするが、改行は適用する
                     if "segments" in result:
                          text_from_segments = "\n".join([s["text"].strip() for s in result["segments"]])
                          result["text"] = self._add_line_breaks(text_from_segments)
                     else:
                          result["text"] = self._add_line_breaks(result["text"])
             else:
-                # No diarization, but still format lines
-                # Reconstruct from segments to ensure newlines even if no punctuation
+                # ダイアライゼーションなしだが、行のフォーマットは行う
+                # 句読点がなくても改行を確実にするためにセグメントから再構築
                 if "segments" in result:
                     text_from_segments = "\n".join([s["text"].strip() for s in result["segments"]])
                     result["text"] = self._add_line_breaks(text_from_segments)

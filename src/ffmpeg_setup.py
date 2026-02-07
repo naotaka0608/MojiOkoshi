@@ -4,16 +4,25 @@ import sys
 from pathlib import Path
 
 def setup_ffmpeg():
+
     """
-    Checks if ffmpeg is in PATH. If not, tries to find it in likely locations
-    and adds it to PATH for the current process.
+    ffmpegがPATHにあるか確認する。ない場合、可能性のある場所を探し、現在のプロセスのPATHに追加する。
     """
+    # 0. バンドルされたffmpeg(PyInstaller)を確認
+    if getattr(sys, 'frozen', False):
+        # PyInstallerバンドル内
+        bundle_dir = sys._MEIPASS
+        # subprocessがffmpeg.exeを見つけられるようにバンドルディレクトリをPATHに追加
+        # これにより、ユーザーがffmpegをインストールしていなくてもアプリが動作します
+        os.environ["PATH"] += os.pathsep + bundle_dir
+        
+    # shutil.which はコマンドが実行可能かどうか（PATHにあるか）を確認します
     if shutil.which("ffmpeg"):
         return True
 
     print("FFmpeg not found in PATH. Searching known locations...")
     
-    # Common locations on Windows (especially Winget)
+    # Windowsの一般的な場所（特にWinget）
     local_app_data = os.environ.get("LOCALAPPDATA", "")
     if not local_app_data:
         return False
@@ -23,18 +32,20 @@ def setup_ffmpeg():
     if not winget_packages.exists():
         return False
 
-    # Naive search for ffmpeg.exe in winget packages
-    # We look for "ffmpeg-*-full_build/bin" or similar pattern
+    # wingetパッケージ内のffmpeg.exeの単純な検索
+    # "ffmpeg-*-full_build/bin"または同様のパターンを探す
+    # WingetでインストールされたffmpegはPATHに追加されていないことがあるため、手動で探します
     try:
         found_ffmpeg = list(winget_packages.rglob("ffmpeg.exe"))
         if found_ffmpeg:
             ffmpeg_path = found_ffmpeg[0].parent
             print(f"Found FFmpeg at: {ffmpeg_path}")
             
-            # Add to PATH
+            # PATHに追加
+            # これでこのプログラム実行中のみ、ffmpegコマンドが使えるようになります
             os.environ["PATH"] += os.pathsep + str(ffmpeg_path)
             
-            # Verify
+            # 検証
             if shutil.which("ffmpeg"):
                 print("FFmpeg successfully added to PATH.")
                 return True

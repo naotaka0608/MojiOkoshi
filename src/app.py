@@ -6,35 +6,37 @@ import threading
 import os
 from .transcriber import Transcriber
 
-# Extend CTk with DnD support
+# CTkをDnDサポートで拡張
 class CTkDhD(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # TkinterDnDを初期化して、ドラッグ＆ドロップ機能を使えるようにします
         self.TkdndVersion = TkinterDnD._require(self)
 
 class App(CTkDhD):
     def __init__(self):
         super().__init__()
 
-        # Theme & Color Setup
+        # テーマ＆カラー設定
+        # アプリの見た目を「ライトモード」に設定し、基調色を「青」にします
         ctk.set_appearance_mode("Light")
         ctk.set_default_color_theme("blue")
         
-        # Window Setup
+        # ウィンドウ設定
         self.title("MojiOkoshi")
         self.geometry("900x700")
-        self.configure(fg_color="#F5F5F7") # Light grey-ish white (Apple style)
+        self.configure(fg_color="#F5F5F7") # 薄いグレーがかった白（Appleスタイル）
 
-        # Fonts
+        # フォント
         self.font_title = ("Meiryo UI", 28, "bold")
         self.font_norm = ("Meiryo UI", 14)
         self.font_small = ("Meiryo UI", 12)
 
-        # Layout Grid
+        # レイアウトグリッド
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1) # Text area expands
+        self.grid_rowconfigure(2, weight=1) # テキストエリアを拡張
 
-        # --- Header ---
+        # --- ヘッダー ---
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
         self.header_frame.grid(row=0, column=0, sticky="ew", padx=30, pady=(30, 20))
         
@@ -50,17 +52,18 @@ class App(CTkDhD):
         self.model_combo.pack(side="right")
         ctk.CTkLabel(self.header_frame, text="モデル:", font=self.font_small, text_color="#515154").pack(side="right", padx=10)
 
-        # --- Drop Zone & Controls ---
+        # --- ドロップゾーン＆コントロール ---
         self.controls_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=15, border_width=1, border_color="#E5E5E5")
         self.controls_frame.grid(row=1, column=0, sticky="ew", padx=30, pady=10)
         self.controls_frame.grid_columnconfigure(0, weight=1)
 
-        # Drop Zone Visual
+        # ドロップゾーンの表示
         self.drop_frame = ctk.CTkFrame(self.controls_frame, fg_color="#F5F9FF", corner_radius=10, border_width=2, border_color="#D1E3FF")
         self.drop_frame.grid(row=0, column=0, columnspan=2, padx=20, pady=20, sticky="ew")
         self.drop_frame.grid_columnconfigure(0, weight=1)
         
-        # Drag & Drop Binding
+        # ドラッグ＆ドロップのバインド
+        # ファイルがドロップされたときに drop_file メソッドが呼ばれるように登録します
         self.drop_target_register(DND_FILES)
         self.dnd_bind('<<Drop>>', self.drop_file)
 
@@ -77,7 +80,7 @@ class App(CTkDhD):
                                             font=self.font_norm, fg_color="#007AFF", hover_color="#005ecb", height=35)
         self.select_file_btn.pack(pady=(0, 20))
 
-        # File Info & Action
+        # ファイル情報＆アクション
         self.file_path_var = tk.StringVar(value="ファイルが選択されていません")
         self.file_label = ctk.CTkLabel(self.controls_frame, textvariable=self.file_path_var, font=self.font_small, text_color="#86868B", wraplength=600)
         self.file_label.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="w")
@@ -86,12 +89,12 @@ class App(CTkDhD):
                                            font=("Meiryo UI", 15, "bold"), fg_color="#007AFF", hover_color="#005ecb", height=40, width=200, text_color="white")
         self.transcribe_btn.grid(row=1, column=1, padx=20, pady=(0, 20), sticky="e")
 
-        # Progress
+        # 進捗
         self.progress_bar = ctk.CTkProgressBar(self.controls_frame, height=10, progress_color="#007AFF", fg_color="#E5E5E5")
         self.progress_bar.grid(row=2, column=0, columnspan=2, padx=0, pady=0, sticky="ew")
         self.progress_bar.set(0)
         
-        # --- Result Area ---
+        # --- 結果エリア ---
         self.result_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.result_frame.grid(row=2, column=0, sticky="nsew", padx=30, pady=(20, 30))
         self.result_frame.grid_rowconfigure(0, weight=1)
@@ -100,7 +103,7 @@ class App(CTkDhD):
         self.textbox = ctk.CTkTextbox(self.result_frame, font=self.font_norm, corner_radius=10, fg_color="#FFFFFF", text_color="#1D1D1F", border_width=1, border_color="#E5E5E5")
         self.textbox.grid(row=0, column=0, sticky="nsew")
         
-        # Footer Action
+        # フッターアクション
         self.footer_frame = ctk.CTkFrame(self.result_frame, fg_color="transparent")
         self.footer_frame.grid(row=1, column=0, sticky="ew", pady=(10, 0))
         
@@ -111,7 +114,7 @@ class App(CTkDhD):
                                      font=self.font_norm, fg_color="transparent", border_width=1, border_color="#007AFF", text_color="#007AFF", hover_color="#F0F8FF")
         self.save_btn.pack(side="right")
 
-        # Logic Logic
+        # ロジック
         self.transcriber = Transcriber()
         self.audio_path = None
         self.is_transcribing = False
@@ -141,13 +144,15 @@ class App(CTkDhD):
     def set_file(self, path):
         self.audio_path = path
         self.file_path_var.set(os.path.basename(path))
+        # ファイルがセットされたら、文字起こしボタンを押せるように（有効化）します
         self.transcribe_btn.configure(state="normal")
         self.status_label.configure(text="ファイルが選択されました", text_color="#007AFF")
-        self.drop_frame.configure(border_color="#007AFF") # Highlight
+        self.drop_frame.configure(border_color="#007AFF") # ハイライト
 
     def update_progress_ui(self, progress):
-        # Update progress bar and label from thread
-        # callback is called from thread, so use after
+        # スレッドからプログレスバーとラベルを更新
+        # GUIの更新はメインスレッドで行う必要があるため、afterメソッドを使ってスケジュールします
+        # これをやらないとアプリがクラッシュすることがあります
         self.after(0, lambda p=progress: self._update_progress_safe(p))
     
     def _update_progress_safe(self, progress):
@@ -171,11 +176,11 @@ class App(CTkDhD):
             return
 
 
-        # Check for HF_TOKEN for Diarization
+        # ダイアライゼーションのためのHF_TOKENを確認
         # hf_token = os.environ.get("HF_TOKEN")
         # if not hf_token:
-        #     # Simple check to see if we should ask. 
-        #     # If the user cancels, we proceed without diarization (token=None)
+        #     # 聞くべきかどうかの簡単なチェック。
+        #     # ユーザーがキャンセルした場合、ダイアライゼーションなしで続行(token=None)
         #     dialog = ctk.CTkInputDialog(text="話者分離(Aさん/Bさん)を行うには\nHuggingFace Tokenが必要です。\n(入力しない場合は分離なしで実行します)", title="HF Token")
         #     hf_token = dialog.get_input()
         hf_token = None
@@ -186,9 +191,9 @@ class App(CTkDhD):
         self.model_combo.configure(state="disabled")
         self.save_btn.configure(state="disabled")
         
-        # Start indeterminate until duration calculation is done? 
-        # Actually our transcriber calculates duration first.
-        # But for model loading it takes time.
+        # 長さの計算が完了するまで不定状態で開始？
+        # 実際にはtranscriberが最初に長さを計算する。
+        # しかしモデルのロードには時間がかかる。
         self.progress_bar.set(0)
         
         self.status_label.configure(text="処理中... (モデルロード中)", text_color="#007AFF")
@@ -197,12 +202,13 @@ class App(CTkDhD):
 
         model_name = self.model_var.get().split()[0]
         
-        # Pass callback
+        # 文字起こしは時間がかかる処理なので、メイン画面が固まらないように別のスレッド（バックグラウンド）で実行します
+        # daemon=True にすると、アプリを閉じたときにこのスレッドも強制終了されます
         threading.Thread(target=self.run_transcription, args=(self.audio_path, model_name, hf_token), daemon=True).start()
 
     def run_transcription(self, audio_path, model_name, hf_token=None):
         try:
-            # Pass our update_progress_ui as callback
+            # update_progress_uiをコールバックとして渡す
             result = self.transcriber.transcribe(
                 audio_path, 
                 model_name, 

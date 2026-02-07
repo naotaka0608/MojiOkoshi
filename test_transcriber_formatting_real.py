@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import sys
 import os
 
-# Adjust path to find src
+# srcを見つけるためにパスを調整
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from src.transcriber import Transcriber
@@ -16,18 +16,18 @@ class TestTranscriberFormatting(unittest.TestCase):
     @patch("src.transcriber.whisper")
     @patch("os.path.exists")
     def test_transcribe_formatting_no_diarization(self, mock_exists, mock_whisper):
-        # Setup mocks
+        # モックのセットアップ
         mock_exists.return_value = True
         
-        # Mock model
+        # モデルのモック
         mock_model = MagicMock()
         mock_whisper.load_model.return_value = mock_model
         
-        # Mock audio load (just need a length)
+        # 音声ロードのモック（長さが必要なだけ）
         mock_whisper.load_audio.return_value = [0] * 16000 # 1 sec
         
 
-        # Mock transcribe result - NO PUNCTUATION
+        # 文字起こし結果のモック - 句読点なし
         mock_model.transcribe.return_value = {
             "text": "こんにちは元気ですかはい、元気です", 
             "segments": [
@@ -37,24 +37,24 @@ class TestTranscriberFormatting(unittest.TestCase):
             ]
         }
         
-        # Run transcribe
-        # We need to create a dummy file for os.path.exists to pass, or just rely on mock
+        # 文字起こしを実行
+        # os.path.existsを通過させるためにダミーファイルを作成するか、単にモックに頼る必要がある
         result = self.transcriber.transcribe("dummy.mp3", model_name="tiny")
         
         print(f"Result text: {result['text']!r}")
         
-        # Check assertions
-        # Expect newlines between segments even without formatting
+        # アサーションの確認
+        # フォーマットなしでもセグメント間に改行を期待
         expected = "こんにちは\n元気ですか\nはい、元気です"
         
         self.assertEqual(result["text"], expected)
 
 
     def test_add_line_breaks_helper(self):
-        # Only ? and ？ and 。 are supported currently
+        # 現在は ? と ？ と 。 のみがサポートされている
         text = "Hello? How are you. I am fine."
         formatted = self.transcriber._add_line_breaks(text)
-        # . is not replaced
+        # . は置換されない
         self.assertEqual(formatted, "Hello?\n How are you. I am fine.")
         
         text_jp = "こんにちは。元気？はい。"
