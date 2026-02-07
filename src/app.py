@@ -21,7 +21,7 @@ class App(CTkDhD):
         ctk.set_default_color_theme("blue")
         
         # Window Setup
-        self.title("MojiOkoshi - Whisper")
+        self.title("MojiOkoshi")
         self.geometry("900x700")
         self.configure(fg_color="#F5F5F7") # Light grey-ish white (Apple style)
 
@@ -38,16 +38,17 @@ class App(CTkDhD):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
         self.header_frame.grid(row=0, column=0, sticky="ew", padx=30, pady=(30, 20))
         
-        self.logo_label = ctk.CTkLabel(self.header_frame, text="MojiOkoshi AI", font=self.font_title, text_color="#1D1D1F")
+        self.logo_label = ctk.CTkLabel(self.header_frame, text="文字おこし AI", font=self.font_title, text_color="#1D1D1F")
         self.logo_label.pack(side="left")
 
-        self.model_var = ctk.StringVar(value="base")
+
+        self.model_var = ctk.StringVar(value="small (推奨)")
         self.model_combo = ctk.CTkOptionMenu(self.header_frame, variable=self.model_var, 
-                                            values=["tiny", "base", "small", "medium", "large"],
-                                            width=100, font=self.font_small,
+                                            values=["tiny (高速)", "base (標準)", "small (推奨)", "medium (中精度)", "large (最高精度)"],
+                                            width=160, font=self.font_small,
                                             fg_color="#FFFFFF", text_color="#1D1D1F", button_color="#007AFF", button_hover_color="#005ecb")
         self.model_combo.pack(side="right")
-        ctk.CTkLabel(self.header_frame, text="Model:", font=self.font_small, text_color="#515154").pack(side="right", padx=10)
+        ctk.CTkLabel(self.header_frame, text="モデル:", font=self.font_small, text_color="#515154").pack(side="right", padx=10)
 
         # --- Drop Zone & Controls ---
         self.controls_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", corner_radius=15, border_width=1, border_color="#E5E5E5")
@@ -63,9 +64,14 @@ class App(CTkDhD):
         self.drop_target_register(DND_FILES)
         self.dnd_bind('<<Drop>>', self.drop_file)
 
+
         self.drop_label = ctk.CTkLabel(self.drop_frame, text="ここにファイルをドラッグ＆ドロップ\nまたは", 
                                       font=("Meiryo UI", 16), text_color="#6E6E73")
-        self.drop_label.pack(pady=(20, 10))
+        self.drop_label.pack(pady=(20, 5))
+        
+        self.support_label = ctk.CTkLabel(self.drop_frame, text="対応形式: .mp3 .wav .m4a .mp4 .flac", 
+                                      font=("Meiryo UI", 12), text_color="#8E8E93")
+        self.support_label.pack(pady=(0, 10))
 
         self.select_file_btn = ctk.CTkButton(self.drop_frame, text="ファイルを選択", command=self.select_file, 
                                             font=self.font_norm, fg_color="#007AFF", hover_color="#005ecb", height=35)
@@ -149,6 +155,14 @@ class App(CTkDhD):
         percentage = int(progress * 100)
         self.status_label.configure(text=f"処理中... {percentage}%", text_color="#007AFF")
 
+
+    def update_text_ui(self, text):
+        self.after(0, lambda t=text: self._append_text_safe(t))
+
+    def _append_text_safe(self, text):
+        self.textbox.insert("end", text + "\n")
+        self.textbox.see("end")
+
     def start_transcription(self):
         if not self.audio_path:
             return
@@ -156,13 +170,15 @@ class App(CTkDhD):
         if self.is_transcribing:
             return
 
+
         # Check for HF_TOKEN for Diarization
-        hf_token = os.environ.get("HF_TOKEN")
-        if not hf_token:
-            # Simple check to see if we should ask. 
-            # If the user cancels, we proceed without diarization (token=None)
-            dialog = ctk.CTkInputDialog(text="話者分離(Aさん/Bさん)を行うには\nHuggingFace Tokenが必要です。\n(入力しない場合は分離なしで実行します)", title="HF Token")
-            hf_token = dialog.get_input()
+        # hf_token = os.environ.get("HF_TOKEN")
+        # if not hf_token:
+        #     # Simple check to see if we should ask. 
+        #     # If the user cancels, we proceed without diarization (token=None)
+        #     dialog = ctk.CTkInputDialog(text="話者分離(Aさん/Bさん)を行うには\nHuggingFace Tokenが必要です。\n(入力しない場合は分離なしで実行します)", title="HF Token")
+        #     hf_token = dialog.get_input()
+        hf_token = None
 
         self.is_transcribing = True
         self.transcribe_btn.configure(state="disabled")
@@ -178,7 +194,8 @@ class App(CTkDhD):
         self.status_label.configure(text="処理中... (モデルロード中)", text_color="#007AFF")
         self.textbox.delete("0.0", "end")
 
-        model_name = self.model_var.get()
+
+        model_name = self.model_var.get().split()[0]
         
         # Pass callback
         threading.Thread(target=self.run_transcription, args=(self.audio_path, model_name, hf_token), daemon=True).start()
@@ -186,7 +203,13 @@ class App(CTkDhD):
     def run_transcription(self, audio_path, model_name, hf_token=None):
         try:
             # Pass our update_progress_ui as callback
-            result = self.transcriber.transcribe(audio_path, model_name, progress_callback=self.update_progress_ui, hf_token=hf_token)
+            result = self.transcriber.transcribe(
+                audio_path, 
+                model_name, 
+                progress_callback=self.update_progress_ui, 
+                text_callback=self.update_text_ui,
+                hf_token=hf_token
+            )
             self.after(0, self.on_transcription_complete, result)
         except Exception as e:
             self.after(0, self.on_transcription_error, str(e))

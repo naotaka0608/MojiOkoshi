@@ -60,7 +60,8 @@ class Transcriber:
         text = text.replace("？", "？\n")
         return text
 
-    def transcribe(self, audio_path, model_name="base", progress_callback=None, hf_token=None):
+
+    def transcribe(self, audio_path, model_name="base", progress_callback=None, text_callback=None, hf_token=None):
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
@@ -79,31 +80,37 @@ class Transcriber:
         import re
 
         class ProgressCapture(io.StringIO):
-            def __init__(self, callback, duration):
+            def __init__(self, progress_cb, text_cb, duration):
                 super().__init__()
-                self.callback = callback
+                self.progress_cb = progress_cb
+                self.text_cb = text_cb
                 self.duration = duration
-                self.pattern = re.compile(r"\[(\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}\.\d{3})\]")
+                self.pattern = re.compile(r"\[(\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}\.\d{3})\]\s*(.*)")
 
             def write(self, text):
                 super().write(text)
                 sys.__stdout__.write(text) # Pass through
                 
-                # Parse timestamp
-                match = self.pattern.search(text)
-                if match and self.callback and self.duration > 0:
-                    end_time_str = match.group(2)
-                    minutes, seconds = end_time_str.split(":")
-                    current_seconds = float(minutes) * 60 + float(seconds)
-                    progress = min(current_seconds / self.duration, 1.0)
-                    self.callback(progress)
+                # Parse timestamp and text
+                for match in self.pattern.finditer(text):
+                    if self.progress_cb and self.duration > 0:
+                        end_time_str = match.group(2)
+                        minutes, seconds = end_time_str.split(":")
+                        current_seconds = float(minutes) * 60 + float(seconds)
+                        progress = min(current_seconds / self.duration, 1.0)
+                        self.progress_cb(progress)
+                    
+                    if self.text_cb:
+                        content = match.group(3).strip()
+                        if content:
+                            self.text_cb(content)
 
         # Redirect stdout
         original_stdout = sys.stdout
         
         try:
-            if progress_callback:
-                sys.stdout = ProgressCapture(progress_callback, duration)
+            if progress_callback or text_callback:
+                sys.stdout = ProgressCapture(progress_callback, text_callback, duration)
             
             result = self.model.transcribe(audio_path, verbose=True, fp16=False)
             
