@@ -61,6 +61,9 @@ def build():
         'sklearn', # pyannoteで使用される場合（ダイアライゼーションは無効化されているがインポートされている？いや、条件付きインポートだ）
         'sklearn.utils._typedefs', # よくある欠落
         'sklearn.neighbors._partition_nodes',
+        'openai',
+        'google.generativeai',
+        'json',
     ]
 
     for hidden in hidden_imports:

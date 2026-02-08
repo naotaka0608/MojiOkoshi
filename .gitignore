@@ -27,4 +27,8 @@ ENV/
 *.srt
 
 # Logs
+# Logs
 *.log
+
+# Config
+config.json
