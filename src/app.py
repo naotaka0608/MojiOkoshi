@@ -5,6 +5,7 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 import threading
 import os
 from .transcriber import Transcriber
+from .summarizer import SimpleSummarizer
 
 # CTkをDnDサポートで拡張
 class CTkDhD(ctk.CTk, TkinterDnD.DnDWrapper):
@@ -100,8 +101,17 @@ class App(CTkDhD):
         self.result_frame.grid_rowconfigure(0, weight=1)
         self.result_frame.grid_columnconfigure(0, weight=1)
 
-        self.textbox = ctk.CTkTextbox(self.result_frame, font=self.font_norm, corner_radius=10, fg_color="#FFFFFF", text_color="#1D1D1F", border_width=1, border_color="#E5E5E5")
-        self.textbox.grid(row=0, column=0, sticky="nsew")
+        self.tabview = ctk.CTkTabview(self.result_frame, fg_color="transparent")
+        self.tabview.grid(row=0, column=0, sticky="nsew")
+        
+        self.tabview.add("文字起こし")
+        self.tabview.add("要約")
+        
+        self.textbox = ctk.CTkTextbox(self.tabview.tab("文字起こし"), font=self.font_norm, corner_radius=10, fg_color="#FFFFFF", text_color="#1D1D1F", border_width=1, border_color="#E5E5E5")
+        self.textbox.pack(expand=True, fill="both")
+        
+        self.summary_textbox = ctk.CTkTextbox(self.tabview.tab("要約"), font=self.font_norm, corner_radius=10, fg_color="#FFFFFF", text_color="#1D1D1F", border_width=1, border_color="#E5E5E5")
+        self.summary_textbox.pack(expand=True, fill="both")
         
         # フッターアクション
         self.footer_frame = ctk.CTkFrame(self.result_frame, fg_color="transparent")
@@ -113,9 +123,14 @@ class App(CTkDhD):
         self.save_btn = ctk.CTkButton(self.footer_frame, text="結果を保存", command=self.save_to_file, state="disabled",
                                      font=self.font_norm, fg_color="transparent", border_width=1, border_color="#007AFF", text_color="#007AFF", hover_color="#F0F8FF")
         self.save_btn.pack(side="right")
+        
+        self.summarize_btn = ctk.CTkButton(self.footer_frame, text="要約を作成", command=self.generate_summary, state="disabled",
+                                     font=self.font_norm, fg_color="#34C759", hover_color="#2da84e", text_color="white", width=120)
+        self.summarize_btn.pack(side="right", padx=10)
 
         # ロジック
         self.transcriber = Transcriber()
+        self.summarizer = SimpleSummarizer()
         self.audio_path = None
         self.is_transcribing = False
 
@@ -198,6 +213,8 @@ class App(CTkDhD):
         
         self.status_label.configure(text="処理中... (モデルロード中)", text_color="#007AFF")
         self.textbox.delete("0.0", "end")
+        self.summary_textbox.delete("0.0", "end")
+        self.summarize_btn.configure(state="disabled")
 
 
         model_name = self.model_var.get().split()[0]
@@ -230,6 +247,7 @@ class App(CTkDhD):
         self.transcribe_btn.configure(state="normal")
         self.model_combo.configure(state="normal")
         self.save_btn.configure(state="normal")
+        self.summarize_btn.configure(state="normal")
         
         self.status_label.configure(text="完了しました (100%)", text_color="#34C759")
         self.textbox.insert("0.0", result["text"])
@@ -251,8 +269,36 @@ class App(CTkDhD):
         file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("テキストファイル", "*.txt")])
         if file_path:
             try:
+                # 現在表示されているタブのコンテンツを保存
+                current_tab = self.tabview.get()
+                if current_tab == "要約":
+                    text = self.summary_textbox.get("0.0", "end")
+                else:
+                    text = self.textbox.get("0.0", "end")
+                    
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(text)
                 messagebox.showinfo("保存完了", "ファイルを保存しました")
             except Exception as e:
                 messagebox.showerror("エラー", f"保存に失敗しました: {e}")
+
+    def generate_summary(self):
+        text = self.textbox.get("0.0", "end")
+        if not text.strip():
+            messagebox.showwarning("警告", "文字起こしテキストが空です")
+            return
+            
+        self.status_label.configure(text="要約を作成中...", text_color="#007AFF")
+        self.update_idletasks()
+        
+        try:
+            summary = self.summarizer.summarize(text)
+            self.summary_textbox.delete("0.0", "end")
+            self.summary_textbox.insert("0.0", summary)
+            
+            self.tabview.set("要約")
+            self.status_label.configure(text="要約が完了しました", text_color="#34C759")
+            
+        except Exception as e:
+            self.status_label.configure(text="要約に失敗しました", text_color="#FF3B30")
+            messagebox.showerror("エラー", f"要約中にエラーが発生しました: {e}")
